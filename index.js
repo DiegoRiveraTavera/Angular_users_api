@@ -69,6 +69,26 @@ app.delete('/:id', async (req, res) => {
   res.json({ message: 'Usuario eliminado correctamente' })
 })
 
+// POST /register → gateway: localhost:4000/users/register
+app.post('/register', async (req, res) => {
+  const { name, email, calle, colonia, no_exterior, telefono, password } = req.body
+
+  // Verificar si el email ya existe
+  const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email])
+  if (exists.rows[0]) {
+    return res.status(400).json({ message: 'El email ya está registrado' })
+  }
+
+  const result = await pool.query(
+    `INSERT INTO users (name, email, calle, colonia, no_exterior, telefono, contraseña)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, name, email, calle, colonia, no_exterior, telefono, active, created_at`,
+    [name, email, calle, colonia, no_exterior, telefono, password]
+  )
+
+  res.status(201).json(result.rows[0])
+})
+
 app.listen(process.env.PORT, () => {
   console.log(`Users API en puerto ${process.env.PORT}`)
 })
