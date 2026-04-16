@@ -2,12 +2,55 @@ require('dotenv').config()
 const express = require('express')
 const { Pool } = require('pg')
 const jwt = require('jsonwebtoken')
+const { logRequest, logError } = require('./logger')
 
 const app = express()
 app.use(express.json())
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
 const JWT_SECRET = process.env.JWT_SECRET
+
+// ✅ Middleware global de logging
+app.use(async (req, res, next) => {
+  const startTime = Date.now()
+
+  // Extraer user_id del token si existe
+  let userId = null
+  const auth = req.headers.authorization
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET)
+      userId = decoded.id
+    } catch {}
+  }
+
+  res.on('finish', async () => {
+    const responseTimeMs = Date.now() - startTime
+    const statusCode = res.statusCode
+
+    if (statusCode >= 400) {
+      await logError({
+        method: req.method,
+        endpoint: req.path,
+        userId,
+        ip: req.ip,
+        statusCode,
+        errorMessage: `HTTP ${statusCode}`
+      })
+    } else {
+      await logRequest({
+        method: req.method,
+        endpoint: req.path,
+        userId,
+        ip: req.ip,
+        statusCode,
+        responseTimeMs
+      })
+    }
+  })
+
+  next()
+})
 
 // POST /login
 // POST /login — agrega el JOIN con user_permissions
